@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -76,18 +77,31 @@ WSGI_APPLICATION = 'code_doc.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'polls_db',
-        'USER': 'postgres',
-        'PASSWORD': '123',
-        'HOST': 'localhost',
-        'PORT':  '5432',
-        'CONN_MAX_AGE': 60,
-        'ATOMIC_REQUESTS': True,
+if DEBUG:
+    #Local dev: PostgreSQL:
+    DATABASES = {
+        'default': {
+            'ENGINE': config('DB_ENGINE'),
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD', cast=int),
+            'HOST': config('DB_HOST'),
+            'PORT': config('DB_PORT'),
+
+            'CONN_MAX_AGE': 60,
+            'ATOMIC_REQUESTS': True,
+        }
     }
-}
+
+else:
+    #Production: Render PostgreSQL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=config('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
 
 
 # Password validation
