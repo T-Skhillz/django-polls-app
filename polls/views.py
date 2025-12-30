@@ -1,4 +1,4 @@
-from polls.models import Question, Choice
+from polls.models import Question, Choice, Vote
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
@@ -82,10 +82,10 @@ class QuestionDetail(generics.RetrieveAPIView):
 
 @api_view(["POST"])
 def choice_vote(request, pk):
-    choice = get_object_or_404(Choice, pk=pk)
-    choice.votes = F("votes") + 1 #Do the math directly on the DB not Python
-    choice.save()
-    choice.refresh_from_db()
+    vote = get_object_or_404(Vote, pk=pk)
+    vote.votes = F("votes") + 1 #Do the math directly on the DB not Python
+    vote.save()
+    vote.refresh_from_db()
     serializer = ChoiceSerializer(choice)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
