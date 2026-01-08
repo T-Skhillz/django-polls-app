@@ -1,101 +1,65 @@
 from polls.models import Question, Choice, Vote
-from rest_framework import status
-from rest_framework.decorators import api_view
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from polls.serializers import QuestionSerializer, ChoiceSerializer, UserSerializer
-from django.db.models import F
-from django.shortcuts import get_object_or_404
-from rest_framework import generics
+from polls.serializers import (
+    QuestionSerializer,
+    ChoiceSerializer,
+    VoteReadSerializer,
+    VoteWriteSerializer,
+)
+
 from django.contrib.auth.models import User
-from rest_framework import permissions
-from polls.services.permissions import IsOwnerOrAuthenticated
-from rest_framework import serializers
-from rest_framework.decorators import api_view
+from django.db.models import Count
+
+from rest_framework import viewsets, permissions
+from rest_framework.decorators import api_view, action
+from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
-# class QuestionList(APIView):
-#     def get_object_list(self):
-#         return Question.objects.all()
-
-#     def get(self, request, format=None):
-#         questions = self.get_object_list()
-#         serializer = QuestionSerializer(questions, many=True)
-#         return Response(serializer.data)
-
-#     def post(self, request, format=None):
-#         questions = self.get_object_list()
-#         serializer = QuestionSerializer(questions, data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#     def perform_create(self, serializers):
-#         return serializers.save(user=self.request.user)
-    
-#     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
-
-# class QuestionDetail(APIView):
-#     def get_object(self, pk):
-#         return get_object_or_404(Question, pk=pk)
-
-#     def get(self, request, pk, format=None):
-#         question = self.get_object(pk)
-#         serializer = QuestionSerializer(question, context = {"request":request})
-#         return Response(serializer.data)
-
-#     def patch(self, request, pk, format=None):
-#         question = self.get_object(pk)
-#         serializer = QuestionSerializer(question, data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-#     def delete(self, request, pk, format=None):
-#         question = self.get_object(pk)
-#         question.delete()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
-    
-#     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
+from polls.services.permissions import IsOwnerOrAuthenticated
 
 
-@api_view(["GET"])
-def api_root(request):
-    return Response(
-        {
-            "user" : reverse("user_list", request=request, format=None),
-            "questions" : reverse("question_list", request=request, format=None),
-        }
-    )
-
-class QuestionList(generics.ListAPIView):
+class QuestionViewSet(viewsets.ModelViewSet):
     queryset = Question.objects.all()
     serializer_class = QuestionSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
 
-class QuestionDetail(generics.RetrieveAPIView):
-    queryset = Question.objects.all()
-    serializer_class = QuestionSerializer
+    @action(detail=True, methods=['get'])
+    def results(self, request, pk=None):
+        question = self.get_object()
+        # Get all choices for this question and count their votes
+        choices = question.choices.annotate(_vote_count=Count('choice_votes'))
+        
+        results_data = [
+            {
+                "id": choice.id,
+                "text": choice.choice_text,
+                "votes": choice._vote_count
+            }
+            for choice in choices
+        ]
+        
+        return Response({
+            "question": question.title,
+            "results": results_data
+        })
+
+class ChoiceViewSet(viewsets.ModelViewSet):
+    queryset = Choice.objects.all()
+    serializer_class = ChoiceSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
 
-@api_view(["POST"])
-def choice_vote(request, pk):
-    vote = get_object_or_404(Vote, pk=pk)
-    vote.votes = F("votes") + 1 #Do the math directly on the DB not Python
-    vote.save()
-    vote.refresh_from_db()
-    serializer = ChoiceSerializer(choice)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+class VoteViewSet(viewsets.ModelViewSet):
+    queryset = Vote.objects.all()
 
+    def get_serializer_class(self):
+        if self.action in ["list", "retrieve"]:
+            return VoteReadSerializer
+        return VoteWriteSerializer
 
-class UserList(generics.ListAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_anonymous:
+            return Vote.objects.none()
+        return self.queryset.filter(user=self.request.user)
 
-class UserDetail(generics.RetrieveAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAuthenticated]
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

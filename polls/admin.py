@@ -36,13 +36,13 @@ class QuestionAdmin(nested_admin.NestedModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        # We annotate the count so it's a real number the DB can sort
-        return queryset.annotate(_vote_count=Count("question_votes", distinct=True))
+        queryset = queryset.annotate(
+            _vote_count = Count("question_votes", distinct=True)
+        )
+        return queryset
 
     def display_total_votes(self, obj):
-        # Return the annotated value
         return obj._vote_count
     
-    # Link the column sorting to the annotated number
     display_total_votes.admin_order_field = "_vote_count"
     display_total_votes.short_description = "Total Votes"

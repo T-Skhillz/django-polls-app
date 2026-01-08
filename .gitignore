@@ -43,8 +43,11 @@ Thumbs.db
 *.db
 *.sqlite
 
+serialiZer.py
+error.html
+
+snippets/
+
 # Migrations
 # **/migrations/*.py
 # !**/migrations/__init__.py
-
-/error

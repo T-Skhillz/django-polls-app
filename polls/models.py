@@ -8,12 +8,7 @@ class Question(models.Model):
     title = models.CharField(max_length=200)
     published_at = models.DateTimeField(auto_now_add=True)
     completed = models.BooleanField(default=False)
-
-    def total_votes(self):
-        return Vote.objects.filter(choice__question=self).count()
-    total_votes.short_description = "Total Votes"
-    total_votes.admin_order_field = "question_votes"
-
+    
     def __str__(self):
         return f"{self.title}"
 
@@ -42,15 +37,13 @@ class Vote(models.Model):
     created_at = models.DateTimeField(default=timezone.now)    
 
     def clean(self):
-        # Check if a vote already exists for this user and question
-        # We look for the question via the choice
         if self.choice_id and self.user_id:
-            exists = Vote.objects.filter(
-                user=self.user, 
+            exist = Vote.objects.filter(
+                user=self.user,
                 question=self.choice.question
             ).exclude(id=self.id).exists()
-            
-            if exists:
+
+            if exist:
                 raise ValidationError("This user has already voted in this poll.")
 
     def save(self, *args, **kwargs):
